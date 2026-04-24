@@ -1,0 +1,6 @@
+{
+  "error_id": "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2026-04-24T10:15:30Z",
+  "error_type": "ZeroDivisionError",
+  "sanitized_traceback": "File 'main.py', line 42, in calculate_metrics\n    result = x / 0\n[REDACTED_IP]: Internal Server Error"
+}
