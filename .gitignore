@@ -1,0 +1,17 @@
+# Environments
+venv/
+env/
+.env
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Database and OS junk
+*.sqlite3
+*.db
+.DS_Store
+pgdata/
+
+# Mac/Windows System Files
+Thumbs.db
