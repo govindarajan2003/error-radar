@@ -76,11 +76,17 @@ def get_embedding(
                 wait_time *= 2
                 continue
             raise OllamaTimeoutError("Embedding request timed out after multiple attempts!")
-
+        except EmbeddingDimensionError:
+            raise EmbeddingDimensionError(f"Expected 768 dimensions, got {embed_length} dimensions!")
+        
         except Exception as e:
             raise Exception(f"Unexpected error: {e}")
-    
-    
+
+def embed_error(error_id: str, sanitized_trace: str) -> None:
+    vector = get_embedding(sanitized_trace)
+    # TODO: Integrate with Navanee's SQLAlchemy Vector Database session
+    print(f"Mock DB Insert: Saved {len(vector)}-dimensional vector for error_id: {error_id}")
+
 def get_vector_length(response: dict) -> int:
     """
     Extracts embedding vector length from response.
