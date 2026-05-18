@@ -9,6 +9,8 @@ load_dotenv()
 
 # Instantiate global SQLAlchemy Engine
 database_url = os.getenv('DATABASE_URL')
+if not database_url:
+    raise EnvironmentError("Database URL not set, check the .env file")
 engine = create_engine(database_url)
 
 # Raised when Ollama server is unreachable (e.g. not running or wrong URL)
@@ -100,7 +102,7 @@ def embed_error(error_id: int, sanitized_trace: str) -> None:
         None
     """
     vector = get_embedding(sanitized_trace)
-    vector_string = str(vector)
+    vector_string = "[" + ",".join(str(v) for v in vector) + "]"
     with engine.begin() as connection:
         query = text("""
             UPDATE errors
