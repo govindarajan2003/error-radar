@@ -2,9 +2,14 @@ import os
 from dotenv import load_dotenv
 import requests
 import time
+from sqlalchemy import text, create_engine
 
 # Loads environment variable into process
 load_dotenv()
+
+# Instantiate global SQLAlchemy Engine
+database_url = os.getenv('DATABASE_URL')
+engine = create_engine(database_url)
 
 # Raised when Ollama server is unreachable (e.g. not running or wrong URL)
 class OllamaUnavailableError(Exception):
@@ -59,6 +64,9 @@ def get_embedding(
         try:
             # Make request to ollama embedding endpoint
             response = requests.post(api_url, json = payload, timeout = 10.00)
+
+            if response.status_code != 200:
+                raise OllamaUnavailableError(f"Ollama returned unexpected status code {response.status_code}")
             
             data = response.json()
             # Validate embedding dimension
@@ -78,14 +86,33 @@ def get_embedding(
             raise OllamaTimeoutError("Embedding request timed out after multiple attempts!")
         except EmbeddingDimensionError:
             raise EmbeddingDimensionError(f"Expected 768 dimensions, got {embed_length} dimensions!")
-        
-        except Exception as e:
-            raise Exception(f"Unexpected error: {e}")
 
-def embed_error(error_id: str, sanitized_trace: str) -> None:
+def embed_error(error_id: int, sanitized_trace: str) -> None:
+    """
+    Generates an embedding vector from a sanitized stack trace
+    and stores it in the database for the given error record.
+
+    Args:
+        error_id: Unique identifier of the error row in the `errors` table.
+        sanitized_trace: Sanitized error trace text to be converted into an embedding vector.
+
+    Returns:
+        None
+    """
     vector = get_embedding(sanitized_trace)
-    # TODO: Integrate with Navanee's SQLAlchemy Vector Database session
-    print(f"Mock DB Insert: Saved {len(vector)}-dimensional vector for error_id: {error_id}")
+    vector_string = str(vector)
+    with engine.begin() as connection:
+        query = text("""
+            UPDATE errors
+            SET embedding = :embedding_vector
+            WHERE id = :error_id;
+        """)
+        connection.execute(query,{
+            "embedding_vector":  vector_string,
+            "error_id": error_id
+        })
+        
+
 
 def get_vector_length(response: dict) -> int:
     """
