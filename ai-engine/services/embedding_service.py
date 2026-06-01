@@ -101,8 +101,8 @@ def embed_error(error_id: int, sanitized_trace: str) -> None:
     Returns:
         None
     """
-    vector = get_embedding(sanitized_trace)
-    vector_string = "[" + ",".join(str(v) for v in vector) + "]"
+    query_vector = get_embedding(sanitized_trace)
+    vector_string = "[" + ",".join(str(v) for v in query_vector) + "]"
     with engine.begin() as connection:
         query = text("""
             UPDATE errors
