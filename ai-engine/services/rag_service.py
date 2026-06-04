@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from sqlalchemy import text, create_engine
 from services.embedding_service import get_embedding
 from pathlib import Path
-
+from typing import Optional
 
 # Loads environment values
 load_dotenv()
@@ -141,5 +141,38 @@ def generate_suggestion(
         return {"root_cause": "LLM failed to return valid JSON", "suggested_fix": "Manual review required", "confidence": 0.0}
         
         
-    
+def get_all_errors(resolved: Optional[bool] = None) -> list[dict]:
+    with engine.connect() as connection:
+        sql_text = """
+            SELECT
+                id,
+                message,
+                sanitized_trace,
+                service_name,
+                resolved,
+                created_at
+            FROM errors
+        """
+        params = {}
+        if resolved is not None:
+            sql_text += " WHERE resolved = :resolved "
+            params['resolved'] = resolved
+        sql_text += "ORDER BY created_at DESC;"
+        query = text(sql_text)
+        result = connection.execute(query, params)
+        result = result.fetchall()
 
+        errors = []
+        for row in result:
+            errors.append(
+                {
+                    "id": row.id,
+                    "message": row.message,
+                    "sanitized_trace": row.sanitized_trace,
+                    "service_name":row.service_name,
+                    "resolved":row.resolved,
+                    "created_at":row.created_at,
+                }
+            )
+        return errors
+                

@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from services.rag_service import find_similar_errors, generate_suggestion
+from typing import Optional
+from services.rag_service import find_similar_errors, generate_suggestion, get_all_errors
 
 app = FastAPI(
     title="Zero-Trust TraceRAG Ingestion Engine",
@@ -34,3 +35,14 @@ def analyze_error(
         }
     except Exception as e:
         raise HTTPException(status_code=500,detail=str(e))
+
+@app.get("/errors")
+def list_errors(resolved: Optional[bool] = None):
+    try:
+        errors = get_all_errors(resolved)
+        return {
+            "status": "success",
+            "data": errors
+        }  
+    except Exception as e:
+        raise HTTPException(500)
