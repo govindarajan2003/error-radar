@@ -25,9 +25,7 @@ def analyze_error(
     ):
     try:
         err_log = query.error_log
-        print("1")
         similar_cases = find_similar_errors(err_log)
-        print("2")
         response = generate_suggestion(err_log, similar_cases)
         return {
             "similar_cases": similar_cases,
