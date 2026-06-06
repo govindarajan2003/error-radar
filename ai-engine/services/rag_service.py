@@ -2,19 +2,13 @@ import os
 import requests
 import json
 from dotenv import load_dotenv
-from sqlalchemy import text, create_engine
 from services.embedding_service import get_embedding
 from pathlib import Path
 from typing import Optional
+from repositories.error_repo import find_similar_by_vector, get_all_errors_from_db
 
-# Loads environment values
+# Load configuration values from the .env file into process environment variables.
 load_dotenv()
-
-# Creates engine for the database 
-database_url = os.getenv('DATABASE_URL')
-if not database_url:
-    raise EnvironmentError("Database URL not set, check the .env file")
-engine = create_engine(database_url)
 
 def find_similar_errors(
         query_text: str,
@@ -33,6 +27,7 @@ def find_similar_errors(
         list[dict]: A list of historical errors that semantically match the query, 
                     including their calculated similarity score (1 - distance).
     """
+
     # Fallback to Environment Variables if explicit parameters aren't passed
     # Wrapping in int() and float() ensures string configs are cast correctly.
     if top_n is None:
@@ -47,37 +42,7 @@ def find_similar_errors(
     query_vector = "[" + "," .join(str(v) for v in vector) + "]"
     
     # Execute Read-Only Transaction
-    with engine.connect() as connection:
-        query = text("""
-            SELECT
-                id,
-                message,
-                sanitized_trace,
-                service_name,
-                1 - (embedding <=> :query_vector) AS similarity_score
-            FROM errors
-            WHERE embedding IS NOT NULL
-            ORDER BY embedding <=> :query_vector ASC
-            LIMIT :top_n
-        """)
-        result = connection.execute(query,{
-            'top_n': top_n,
-            'query_vector': query_vector
-        })
-        
-        rows = result.fetchall()
-        results_list = []
-        # Parse, Filter, and Format Results
-        for row in rows:
-            if row.similarity_score >= min_similarity:
-                match = {
-                    "id": row.id,
-                    "message": row.message,
-                    "sanitized_trace": row.sanitized_trace,
-                    "service_name": row.service_name,
-                    "similarity_score": round(row.similarity_score, 4)
-                }
-                results_list.append(match)
+    results_list = find_similar_by_vector(query_vector, top_n, min_similarity)
     return results_list
 
 def generate_suggestion(
@@ -134,6 +99,7 @@ def generate_suggestion(
             "temperature": 0.1
         }
     }
+    
     # Submit the generated prompt to the configured LLM endpoint and
     # retrieve the model's structured diagnostic response.
     try:
@@ -221,42 +187,4 @@ def get_all_errors(
     """
     # Build the base query dynamically so that resolution filtering
     # can be applied only when explicitly requested by the caller.
-    with engine.connect() as connection:
-        sql_text = """
-            SELECT
-                id,
-                message,
-                sanitized_trace,
-                service_name,
-                resolved,
-                created_at
-            FROM errors
-        """
-        # Apply resolution-status filtering when a value is provided.
-        # A value of None indicates that all records should be returned.
-        params = {}
-        if resolved is not None:
-            sql_text += " WHERE resolved = :resolved "
-            params['resolved'] = resolved
-
-        sql_text += "ORDER BY created_at DESC;"
-        query = text(sql_text)
-        
-        result = connection.execute(query, params)
-        result = result.fetchall()
-        # Convert SQLAlchemy Row objects into plain dictionaries to
-        # provide a consistent API response format.
-        errors = []
-        for row in result:
-            errors.append(
-                {
-                    "id": row.id,
-                    "message": row.message,
-                    "sanitized_trace": row.sanitized_trace,
-                    "service_name":row.service_name,
-                    "resolved":row.resolved,
-                    "created_at":row.created_at,
-                }
-            )
-        return errors
-                
+    return get_all_errors_from_db(resolved)
