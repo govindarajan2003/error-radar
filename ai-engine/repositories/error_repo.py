@@ -1,8 +1,11 @@
 from sqlalchemy import text
 
+from datetime import datetime, timezone
+
 from core.database import engine
 
 from typing import Optional
+
 
 def find_similar_by_vector(query_vector_str: str, top_n: int, min_similarity: float) -> list[dict]:
     """
@@ -82,6 +85,7 @@ def get_all_errors_from_db(resolved: Optional[bool] = None) -> list[dict]:
                 sanitized_trace,
                 service_name,
                 resolved,
+                past_fix,
                 created_at
             FROM errors
         """
@@ -109,8 +113,137 @@ def get_all_errors_from_db(resolved: Optional[bool] = None) -> list[dict]:
                     "sanitized_trace": row.sanitized_trace,
                     "service_name":row.service_name,
                     "resolved":row.resolved,
+                    "past_fix": row.past_fix,
                     "created_at":row.created_at,
                 }
             )
         return errors
 
+def update_past_fix(
+        error_id: int,
+        fix_description: str
+) -> bool:
+    """
+    Updates an error record with a human-approved fix and 
+    marks the error as resolved.
+
+    Args:
+        error_id (int): Unique identifier of the error record.
+        fix_description (str): Resolution details provided by a user.
+    
+    Returns:
+        bool: True if the record was updated successfully,
+            False if no mmatching record exists. 
+    """
+    with engine.begin() as connection:
+        query = text("""
+            UPDATE errors 
+            SET past_fix = :fix_description,
+                resolved = :resolved
+            WHERE id = :error_id
+        """)
+    
+        result = connection.execute(query,{
+            "fix_description": fix_description,
+            "error_id": error_id,
+            "resolved": "true"
+        })
+
+        return result.rowcount > 0
+    
+def insert_error(
+        message: str,
+        stack_trace: str,
+        sanitized_trace: str,
+        service_name: str,
+        embedding: str
+) -> int:
+    """
+    Persists a new error record in the database along with its
+    vector embedding for similarity search.
+
+    Args:
+        message (str): Error message summary.
+        stack_trace (str): Original stack trace.
+        sanitized_trace (str): Normalized stack trace used for embedding.
+        service_name (str): Source service that generated the error.
+        embedding (str): Vector embedding representation of the error.
+    Returns:
+        int: Database-generated identifier of the newly created record.
+    """
+    with engine.begin() as connection:
+        query = text(""" INSERT INTO errors (message, stack_trace, sanitized_trace, service_name,embedding)
+            VALUES (:message, :stack_trace, :sanitized_trace, :service_name, :embedding)
+            RETURNING id;
+        """)
+        id = connection.execute(query,{
+            "message": message,
+            "stack_trace": stack_trace,
+            "sanitized_trace": sanitized_trace,
+            "service_name": service_name,
+            "embedding": embedding
+        }).scalar()
+    
+
+def update_occurrence_count(
+        error_id: int
+) -> bool:
+    """
+    Increments the occurrence count of an existing error record
+    and update its last-seen timestamp.
+
+    Args:
+        error_id (int): Unique identifier of the error record.
+    
+    Returns:
+        bool: True if the record was updated successfully,
+            False if no matching record exists.
+    """
+    with engine.begin() as connection:
+        query = text("""
+            UPDATE errors 
+            SET occurrence_count = occurrence_count + 1,
+                last_seen_at = :now
+            WHERE id = :error_id 
+        """)
+        now = datetime.now(timezone.utc)
+        result = connection.execute(query,{
+            "error_id": error_id,
+            "now": now
+        })
+        return result.rowcount > 0
+
+def find_duplicate_id(
+        query_vector_str:str,
+        min_similarity: float
+) -> int | None:
+    """
+    Finds the most similar error record based on vector similarity
+    and returns its identifier if the similarity exceeds the 
+    configured threshold.
+
+    Args:
+        query_vector_str (str): Vector embedding of the incoming error.
+        min_similarity (float): Minimum similarity score required to 
+            consider a record a duplicate.
+    
+    Returns:
+        int | None:
+            - Error Id when a matching record exceeds the threshold.
+            - None when no suitable match is found.
+    """
+    with engine.connect() as connection:
+        query = text("""
+            SELECT id, 1 - (embedding <=> :query_vector) AS similarity FROM errors
+            WHERE embedding IS NOT NULL
+            ORDER BY embedding <=> :query_vector ASC
+            LIMIT 1
+        """)
+        result = connection.execute(query,{
+            "query_vector": query_vector_str
+        })
+        similar_row = result.fetchone()
+        if result and similar_row.similarity > min_similarity:
+            return similar_row.id
+        else:
+            return None    

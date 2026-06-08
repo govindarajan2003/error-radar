@@ -17,3 +17,6 @@ NEW ERROR:
 
 HISTORICAL ERRORS:
 {historical_errors}
+
+INSTRUCTIONS FOR FIX:
+If a historical error has a high similarity score and a recorded past fix, you MUST strongly base your "suggested_fix" on that recorded past fix.

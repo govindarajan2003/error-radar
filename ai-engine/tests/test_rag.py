@@ -4,22 +4,23 @@ from services.rag_service import find_similar_errors
 from services.embedding_service import OllamaUnavailableError
 
 class FakeRow:
-    def __init__(self, id, message, sanitized_trace, service_name, similarity_score):
+    def __init__(self, id, message, sanitized_trace, service_name, similarity_score, past_fix):
         self.id = id
         self.message = message
         self.sanitized_trace = sanitized_trace
         self.service_name = service_name
         self.similarity_score = similarity_score
+        self.past_fix = past_fix
 
-@patch('services.rag_service.engine.connect')
+@patch("repositories.error_repo.engine.connect")
 @patch('services.rag_service.get_embedding')
 def test_happy_path(mock_embedding, mock_connect):
     mock_embedding.return_value = [0.1] * 768
     mock_db_result = MagicMock()
     mock_db_result.fetchall.return_value = [
-        FakeRow(1, "Error 1", "Trace 1", "Service A", 0.95432),
-        FakeRow(2, "Error 2", "Trace 2", "Service A", 0.85111),
-        FakeRow(3, "Error 3", "Trace 3", "Service A", 0.76222)
+        FakeRow(1, "Error 1", "Trace 1", "Service A", 0.95432,"past_fix"),
+        FakeRow(2, "Error 2", "Trace 2", "Service A", 0.85111,"past_fix"),
+        FakeRow(3, "Error 3", "Trace 3", "Service A", 0.76222,"past_fix")
     ]
     mock_connect.return_value.__enter__.return_value.execute.return_value = mock_db_result
 
@@ -29,7 +30,7 @@ def test_happy_path(mock_embedding, mock_connect):
     assert results[0]["id"] == 1
     assert results[0]["similarity_score"] == 0.9543
 
-@patch('services.rag_service.engine.connect')
+@patch("repositories.error_repo.engine.connect")
 @patch('services.rag_service.get_embedding')
 def test_empty_result(mock_embedding, mock_connect):
     mock_embedding.return_value = [0.1] * 768
@@ -41,15 +42,15 @@ def test_empty_result(mock_embedding, mock_connect):
 
     assert results == []
 
-@patch('services.rag_service.engine.connect')
+@patch("repositories.error_repo.engine.connect")
 @patch('services.rag_service.get_embedding')
 def test_similarity_threshold_filtering(mock_embedding, mock_connect):
     mock_embedding.return_value = [0.1] * 768
     mock_db_result = MagicMock()
     mock_db_result.fetchall.return_value = [
-        FakeRow(1, "Error 1", "Trace 1", "Service A", 0.95432),
-        FakeRow(2, "Error 2", "Trace 2", "Service A", 0.85111),
-        FakeRow(3, "Error 3", "Trace 3", "Service A", 0.43222)
+        FakeRow(1, "Error 1", "Trace 1", "Service A", 0.95432,"past_fix"),
+        FakeRow(2, "Error 2", "Trace 2", "Service A", 0.85111,"past_fix"),
+        FakeRow(3, "Error 3", "Trace 3", "Service A", 0.43222,"past_fix")
     ]
     mock_connect.return_value.__enter__.return_value.execute.return_value = mock_db_result
 
