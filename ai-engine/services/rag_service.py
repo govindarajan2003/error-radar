@@ -2,10 +2,14 @@ import os
 import requests
 import json
 from dotenv import load_dotenv
-from services.embedding_service import get_embedding
 from pathlib import Path
 from typing import Optional
-from repositories.error_repo import find_similar_by_vector, get_all_errors_from_db
+from sqlalchemy.exc import SQLAlchemyError
+from services.embedding_service import get_embedding
+from repositories.error_repo import find_similar_by_vector, get_all_errors_from_db, update_past_fix, insert_error, update_occurrence_count, find_duplicate_id
+from exceptions.database_exceptions import ErrorLogNotFoundError, UpdateOccurrenceFailureError
+from services.embedding_service import embed_error, get_embedding
+
 
 # Load configuration values from the .env file into process environment variables.
 load_dotenv()
@@ -84,10 +88,21 @@ def generate_suggestion(
             "confidence": 0.0
         }
 
-    
+    context = []
+    for error in similar_errors[:3]:
+        trace = error['sanitized_trace'][:300]
+        fix = error.get('past_fix') or "No past fix record"
+        similarity_score = error.get('similarity_score')
+        context.append(
+            {
+                "stack_trace": trace,
+                "past_fix": fix,
+                "similarity_score": similarity_score
+            }
+        )
     prompt = content.format(
         query_error=query_text,
-        historical_errors= json.dumps(similar_errors, indent=2)
+        historical_errors= json.dumps(context, indent=2)
     )
 
     payload = {
@@ -188,3 +203,93 @@ def get_all_errors(
     # Build the base query dynamically so that resolution filtering
     # can be applied only when explicitly requested by the caller.
     return get_all_errors_from_db(resolved)
+
+def update_human_fix_service(
+        error_id: int,
+        fix_description: str
+):
+    """
+    Validates and stores a human-approved fix for an existing error record.
+
+    This service ensures that the provided fix description is not empty
+    before delegating the update to the repository layer.
+
+    Args:
+        error_id(int): Unique identifier of the error record.
+        fix_description (str): Resolution details supplied by a user.
+    
+    Raises:
+        ValueError: If the fix description is empty or contains only whitespace.
+        ErrorLogNotFoundError: If no error record exists for the given ID.
+        SQLAlchemyError: If a database operation fails.
+    """
+    
+    if not fix_description.strip():
+        raise ValueError("Fix description cannot be empty.")
+    try:
+        was_updated = update_past_fix(error_id, fix_description.strip())
+        if not was_updated:
+            raise ErrorLogNotFoundError()
+    except SQLAlchemyError as e:
+        print(f"Database crashed: {e}")
+        raise e
+
+def insert_new_error(
+        message: str,
+        stack_trace: str,
+        sanitized_trace: str,
+        service_name: str
+):
+    """
+    Processes a newly received error and determines whether it should 
+    be recorded as a new error or merged with an existing one.
+
+    The sanitized stack trace is converted into a vector embedding and 
+    compared against existing records. If a sufficiently similar error is found,
+    its occurrence count is incremented. Otherwise, a new record is created.
+
+    Args:
+        message (str): Error message summary.
+        stack_trace (str): Original stack trace.
+        sanitized_trace (str): Normalized stack trace used for similarity matching.
+        service_name (str): Name of the service that generated the error.
+    
+    Returns:
+        dict | None:
+            - success response when a duplicate error is detected.
+            - None when a new record is inserted.
+    
+    Raises:
+        UpdateOccurenceFailureError: If a duplicate error is found but its occurrence count
+            cannot be updated.
+        SQLAlchemyError: If a database operation fails..
+    """
+    vector = get_embedding(sanitized_trace)
+    embedding = "[" + "," .join(str(v) for v in vector) + "]"
+
+    duplicate_id = find_duplicate_id(embedding, 0.9)
+    if duplicate_id:
+        if not update_occurrence_count(duplicate_id):
+            raise UpdateOccurrenceFailureError
+        return {
+            "response": "Success"
+        }
+    
+    try:
+        insert_error(
+            message,
+            stack_trace,
+            sanitized_trace,
+            service_name,
+            embedding
+        )
+    except SQLAlchemyError as e:
+        print(f"Database crashed: {e}")
+        raise e
+
+    
+
+
+    
+    
+    
