@@ -84,6 +84,7 @@ def get_all_errors_from_db(resolved: Optional[bool] = None) -> list[dict]:
                 message,
                 sanitized_trace,
                 service_name,
+                occurrence_count,
                 resolved,
                 past_fix,
                 created_at
@@ -96,7 +97,7 @@ def get_all_errors_from_db(resolved: Optional[bool] = None) -> list[dict]:
             sql_text += " WHERE resolved = :resolved "
             params['resolved'] = resolved
 
-        sql_text += "ORDER BY created_at DESC;"
+        sql_text += "ORDER BY last_seen_at DESC;"
         query = text(sql_text)
         
         result = connection.execute(query, params)
@@ -114,6 +115,7 @@ def get_all_errors_from_db(resolved: Optional[bool] = None) -> list[dict]:
                     "service_name":row.service_name,
                     "resolved":row.resolved,
                     "past_fix": row.past_fix,
+                    "occurrence_count": row.occurrence_count,
                     "created_at":row.created_at,
                 }
             )
@@ -247,3 +249,85 @@ def find_duplicate_id(
             return similar_row.id
         else:
             return None    
+
+def total_error_count() -> int:
+    """
+    Retrieves the total number of error records stored in the database.
+    
+    Returns:
+        int: Total number of records in the errors table.  
+    """
+    with engine.connect() as connection:
+        query = text("""
+            SELECT COUNT(*) FROM errors;
+        """)
+        result = connection.execute(query).scalar()
+        return result
+    
+def unresolved_error_count():
+    """
+    Retrieves the total number of unresolved errors.
+    
+    Returns:
+        int: Count of all unresolved errors in the table errors.    
+    """
+    with engine.connect() as connection:
+        query = text("""
+            SELECT COUNT(*) FROM errors 
+            WHERE errors.resolved = false;
+        """)
+        result = connection.execute(query).scalar()
+        return result
+    
+def most_occurred_error() -> dict:
+    """
+    Retrieves the error with most occurrence count.
+    
+    Returns:
+        dict: Dictionary containing the error message and
+    occurrence count of the most frequently occurring error.
+    """
+    with engine.connect() as connection:
+        query = text("""
+            SELECT message, occurrence_count FROM errors
+            ORDER BY occurrence_count DESC 
+            LIMIT 1;
+        """)
+        result = connection.execute(query).fetchone()
+        if not result:
+            return {
+                "message": "no error found",
+                "occurrence_count":  0
+            }
+        return {
+            "message": result.message,
+            "occurrence_count": result.occurrence_count
+        }
+
+def occurrence_count_in_interval(
+        interval: int
+) -> list:
+    """
+    Retrieves the number of errors created per day within the
+    specified time interval.
+
+    Args:
+        interval (int): Number of days to include in the analysis.
+
+    Returns:
+        list: Collection of rows containing the date and the
+        corresponding error count for that day.
+    """
+    with engine.connect() as connection:
+        query = text("""
+            SELECT DATE(created_at) AS date, COUNT(*) as error_count FROM errors
+            WHERE created_at >= NOW() - (:interval * INTERVAL '1 day')
+            GROUP BY date
+            ORDER BY date ASC;
+        """)
+        rows = connection.execute(query,{
+            "interval": interval
+        }).fetchall()
+
+        return rows
+        

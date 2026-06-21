@@ -30,9 +30,6 @@ class LogErrorRequest(BaseModel):
     stack_trace: str = Field(
         description="Stack-trace of encountered error."
     )
-    sanitized_trace: str = Field(
-        description="Sanitized version of stack-trace"
-    )
     service_name: str = Field(
         description="Service in which error occured."
     )

@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Error Radar — AI-powered runtime error intelligence dashboard for monitoring, diagnosing, and resolving application errors.">
+  <title>Error Radar</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: #0c0f13;
+      color: #c9cdd3;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* -- Accent bar at very top -- */
+    body::before {
+      content: '';
+      display: block;
+      height: 3px;
+      background: linear-gradient(90deg, #e06040, #d4a845, #5b9fd4, #6e8f6e);
+      flex-shrink: 0;
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      width: 100%;
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      padding: 18px 0 14px;
+      border-bottom: 1px solid #1e2228;
+    }
+
+    header .wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .brand { text-align: center; }
+
+    .brand h1 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: #e2e5e9;
+      letter-spacing: -0.01em;
+    }
+
+    .brand h1 em {
+      font-style: normal;
+      color: #c7875a;
+    }
+
+    .brand .tagline {
+      font-size: 0.75rem;
+      color: #5d636e;
+      margin-top: 1px;
+    }
+
+    .refresh-btn {
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: 1px solid #282d35;
+      color: #6b717c;
+      font-size: 0.75rem;
+      font-family: inherit;
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .refresh-btn:hover {
+      color: #a0a6b0;
+      border-color: #3a4049;
+    }
+
+    /* ===== STATS ===== */
+    .stats {
+      display: flex;
+      gap: 1px;
+      margin: 20px 0;
+      background: #1e2228;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .stat {
+      flex: 1;
+      background: #12161b;
+      padding: 18px 20px;
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      color: #555b65;
+      letter-spacing: 0.03em;
+      margin-bottom: 6px;
+    }
+
+    .stat-num {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #dde0e4;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-num.loading { color: #252a31; }
+    .stat-num.top-msg {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #b0b5bc;
+      line-height: 1.4;
+    }
+
+    .stat-detail {
+      font-size: 0.7rem;
+      color: #555b65;
+      margin-top: 3px;
+    }
+
+    .red { color: #d4644a; }
+    .green { color: #6a9f6a; }
+
+    /* ===== TABLE ===== */
+    .table-section { margin-bottom: 24px; }
+
+    .table-heading {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #8a8f98;
+      margin-bottom: 10px;
+      padding-left: 2px;
+    }
+
+    .err-notice {
+      background: rgba(212, 100, 74, 0.08);
+      border-left: 3px solid #d4644a;
+      color: #d4644a;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      margin-bottom: 12px;
+      border-radius: 0 4px 4px 0;
+      display: none;
+    }
+
+    .err-notice.on { display: block; }
+
+    .tbl-wrap {
+      border: 1px solid #1e2228;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: #4e545e;
+      border-bottom: 1px solid #1e2228;
+      background: #0e1116;
+    }
+
+    thead th:first-child { text-align: right; }
+
+    tbody td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #151920;
+      vertical-align: middle;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr { transition: background 0.1s; }
+    tbody tr:hover { background: #151920; }
+
+    tbody tr.done {
+      background: rgba(106, 159, 106, 0.025);
+    }
+    tbody tr.done:hover {
+      background: rgba(106, 159, 106, 0.05);
+    }
+
+    /* columns */
+    .c-id {
+      text-align: right;
+      color: #3f4550;
+      font-family: "SF Mono", "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.75rem;
+      width: 50px;
+    }
+
+    .c-msg {
+      font-weight: 500;
+      color: #c0c5cc;
+      min-width: 180px;
+    }
+
+    .svc-tag {
+      display: inline-block;
+      font-family: "SF Mono", "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.68rem;
+      padding: 2px 7px;
+      background: rgba(91, 159, 212, 0.08);
+      color: #6ba3cc;
+      border-radius: 3px;
+    }
+
+    .status-tag {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 3px;
+    }
+
+    .status-tag.open {
+      background: rgba(212, 100, 74, 0.1);
+      color: #d4644a;
+    }
+
+    .status-tag.closed {
+      background: rgba(106, 159, 106, 0.1);
+      color: #6a9f6a;
+    }
+
+    .c-time {
+      color: #3f4550;
+      font-family: "SF Mono", "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.72rem;
+      white-space: nowrap;
+    }
+
+    .c-occ {
+      text-align: center;
+      color: #555b65;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .c-actions {
+      white-space: nowrap;
+    }
+
+    .c-actions .acts {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .fix-note {
+      font-size: 0.7rem;
+      font-style: italic;
+      color: #4e545e;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .empty-row {
+      text-align: center;
+      padding: 40px 14px;
+      color: #3f4550;
+      font-size: 0.82rem;
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      font-family: inherit;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+      white-space: nowrap;
+    }
+
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-q {
+      background: rgba(91, 159, 212, 0.07);
+      color: #6ba3cc;
+      border-color: rgba(91, 159, 212, 0.15);
+    }
+    .btn-q:hover:not(:disabled) {
+      background: rgba(91, 159, 212, 0.14);
+      border-color: rgba(91, 159, 212, 0.3);
+    }
+
+    .btn-g {
+      background: rgba(106, 159, 106, 0.1);
+      color: #6a9f6a;
+      border-color: rgba(106, 159, 106, 0.18);
+    }
+    .btn-g:hover:not(:disabled) {
+      background: rgba(106, 159, 106, 0.18);
+      border-color: rgba(106, 159, 106, 0.35);
+    }
+
+    /* ===== MODAL ===== */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .overlay.on {
+      display: flex;
+      animation: fadein 0.15s ease;
+    }
+
+    @keyframes fadein {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .dialog {
+      background: #13171d;
+      border: 1px solid #252a31;
+      border-radius: 8px;
+      width: 440px;
+      max-width: calc(100vw - 28px);
+      animation: slidein 0.2s ease;
+    }
+
+    @keyframes slidein {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .dialog-top {
+      padding: 18px 20px 0;
+    }
+
+    .dialog-top h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #c9cdd3;
+      margin-bottom: 4px;
+    }
+
+    .dialog-top p {
+      font-size: 0.75rem;
+      color: #555b65;
+      line-height: 1.45;
+    }
+
+    .dialog-mid {
+      padding: 14px 20px;
+    }
+
+    .dialog-mid label {
+      display: block;
+      font-size: 0.72rem;
+      color: #555b65;
+      margin-bottom: 6px;
+    }
+
+    .dialog-mid textarea {
+      width: 100%;
+      min-height: 88px;
+      padding: 10px 12px;
+      background: #0c0f13;
+      border: 1px solid #252a31;
+      border-radius: 4px;
+      color: #c9cdd3;
+      font-family: inherit;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      resize: vertical;
+      transition: border-color 0.15s;
+    }
+
+    .dialog-mid textarea::placeholder { color: #333940; }
+
+    .dialog-mid textarea:focus {
+      outline: none;
+      border-color: #4a7a9b;
+    }
+
+    .dialog-bot {
+      padding: 12px 20px 18px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .dialog-bot .btn {
+      padding: 7px 16px;
+      font-size: 0.8rem;
+    }
+
+    .btn-flat {
+      background: none;
+      color: #555b65;
+      border-color: #252a31;
+    }
+    .btn-flat:hover { color: #8a8f98; background: #1a1f26; }
+
+    .btn-submit {
+      background: #2f6b3a;
+      color: #c5dcc5;
+      border-color: #2f6b3a;
+    }
+    .btn-submit:hover { background: #387843; }
+
+    /* ===== AI PANEL ===== */
+    #ai-panel {
+      display: none;
+      border: 1px solid #1e2228;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    #ai-panel.on { display: block; }
+
+    .ai-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid #1e2228;
+      background: #0e1116;
+    }
+
+    .ai-head h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #8a8f98;
+    }
+
+    .conf {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+    }
+
+    .conf .val {
+      color: #4e545e;
+      font-family: "SF Mono", "Cascadia Mono", "Consolas", monospace;
+    }
+
+    .conf-tag {
+      font-size: 0.66rem;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 3px;
+    }
+
+    .conf-h { background: rgba(106,159,106,0.12); color: #6a9f6a; }
+    .conf-m { background: rgba(212,168,69,0.12); color: #c7a043; }
+    .conf-l { background: rgba(212,100,74,0.12); color: #d4644a; }
+
+    .ai-body { padding: 16px; }
+
+    .ai-wait {
+      text-align: center;
+      padding: 36px 16px;
+      color: #4e545e;
+      font-size: 0.85rem;
+    }
+
+    .ai-wait .dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      background: #4e545e;
+      border-radius: 50%;
+      margin: 0 2px;
+      animation: blink 1.4s infinite both;
+    }
+    .ai-wait .dot:nth-child(2) { animation-delay: 0.2s; }
+    .ai-wait .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes blink {
+      0%, 80%, 100% { opacity: 0.15; }
+      40% { opacity: 1; }
+    }
+
+    .ai-sect { margin-bottom: 16px; }
+    .ai-sect:last-child { margin-bottom: 0; }
+
+    .ai-sect h3 {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #4e545e;
+      margin-bottom: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .sim-list { list-style: none; }
+
+    .sim-list li {
+      padding: 5px 0;
+      font-size: 0.8rem;
+      color: #a0a6b0;
+      border-bottom: 1px solid #151920;
+    }
+    .sim-list li:last-child { border-bottom: none; }
+
+    .sim-list .sc {
+      color: #6ba3cc;
+      font-family: "SF Mono", "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.72rem;
+      font-weight: 500;
+    }
+
+    .sim-list .sv { color: #4e545e; }
+    .sim-none { color: #3f4550; font-size: 0.8rem; }
+
+    .rc-block {
+      border-left: 2px solid #5b7e9b;
+      padding: 10px 14px;
+      background: rgba(91, 126, 155, 0.04);
+      border-radius: 0 4px 4px 0;
+      font-size: 0.82rem;
+      color: #a0a6b0;
+      line-height: 1.55;
+    }
+
+    .sf-block {
+      padding: 10px 14px;
+      background: rgba(106, 159, 106, 0.03);
+      border: 1px solid rgba(106, 159, 106, 0.08);
+      border-radius: 4px;
+      font-size: 0.82rem;
+      color: #a0a6b0;
+      white-space: pre-line;
+      line-height: 1.6;
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 0.68rem;
+      color: #2d323a;
+      border-top: 1px solid #151920;
+      margin-top: auto;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .stats { flex-direction: column; }
+
+      header .wrap { flex-direction: column; gap: 10px; }
+      .refresh-btn { position: static; transform: none; }
+
+      .c-time, thead th:nth-child(6) { display: none; }
+      .dialog { width: calc(100vw - 20px); }
+    }
+
+    @media (max-width: 480px) {
+      .wrap { padding: 0 12px; }
+      .stat-num { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="wrap">
+      <div class="brand">
+        <h1><em>Error</em> Radar</h1>
+        <div class="tagline">runtime error intelligence</div>
+      </div>
+      <button class="refresh-btn" onclick="loadDashboard()">refresh</button>
+    </div>
+  </header>
+
+  <main style="flex:1; padding: 0 0 20px;">
+    <div class="wrap">
+
+      <!-- Stats -->
+      <div id="stats-err" class="err-notice"></div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Total errors</div>
+          <div class="stat-num loading" id="s-total">&mdash;</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Unresolved</div>
+          <div class="stat-num loading" id="s-unres">&mdash;</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Most frequent</div>
+          <div class="stat-num loading top-msg" id="s-top">&mdash;</div>
+          <div class="stat-detail" id="s-top-n"></div>
+        </div>
+      </div>
+
+      <!-- Error table -->
+      <div class="table-section">
+        <div class="table-heading">Error log</div>
+        <div id="tbl-err" class="err-notice"></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Message</th>
+                <th>Service</th>
+                <th>Occurrences</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr><td colspan="7" class="empty-row">loading&hellip;</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- AI panel -->
+      <div id="ai-err" class="err-notice"></div>
+      <div id="ai-panel">
+        <div class="ai-head">
+          <h2>AI Diagnosis</h2>
+          <div class="conf" id="conf-area" style="display:none">
+            <span class="val" id="conf-val"></span>
+            <span class="conf-tag" id="conf-tag"></span>
+          </div>
+        </div>
+        <div class="ai-body" id="ai-body"></div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Resolve modal -->
+  <div class="overlay" id="modal">
+    <div class="dialog">
+      <div class="dialog-top">
+        <h3>Resolve this error</h3>
+        <p>What fixed it? This will be stored for future reference.</p>
+      </div>
+      <div class="dialog-mid">
+        <label for="fix-in">Fix description</label>
+        <textarea id="fix-in" placeholder="Bumped the pool timeout, restarted the worker, etc." rows="3"></textarea>
+      </div>
+      <div class="dialog-bot">
+        <button class="btn btn-flat" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-submit" onclick="submitFix()">Save fix</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    AI suggestions are generated by a local LLM and should be reviewed by a developer before acting on them.
+  </footer>
+
+  <script>
+    const API = 'http://127.0.0.1:8000';
+    let cache = [];
+    let resolveId = null;
+
+    function fmt(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      const p = n => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    function cut(s, n) { return !s ? '' : s.length > n ? s.slice(0, n) + '…' : s; }
+
+    function h(s) {
+      if (!s) return '';
+      const el = document.createElement('span');
+      el.textContent = s;
+      return el.innerHTML;
+    }
+
+    function showErr(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.classList.add('on');
+    }
+
+    function hideErr(id) {
+      const el = document.getElementById(id);
+      el.textContent = '';
+      el.classList.remove('on');
+    }
+
+    // Modal
+    function openModal(eid) {
+      resolveId = eid;
+      document.getElementById('fix-in').value = '';
+      document.getElementById('modal').classList.add('on');
+      setTimeout(() => document.getElementById('fix-in').focus(), 80);
+    }
+
+    function closeModal() {
+      resolveId = null;
+      document.getElementById('modal').classList.remove('on');
+    }
+
+    async function submitFix() {
+      const ta = document.getElementById('fix-in');
+      const txt = ta.value.trim();
+      if (!txt) {
+        ta.style.borderColor = '#d4644a';
+        setTimeout(() => ta.style.borderColor = '', 1200);
+        return;
+      }
+      const eid = resolveId;
+      closeModal();
+      await markResolved(eid, txt);
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+    document.getElementById('modal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+
+    // Core
+    async function loadDashboard() {
+      hideErr('stats-err');
+      hideErr('tbl-err');
+      hideErr('ai-err');
+
+      document.getElementById('ai-panel').classList.remove('on');
+      document.getElementById('ai-body').innerHTML = '';
+      document.getElementById('conf-area').style.display = 'none';
+
+      const sT = document.getElementById('s-total');
+      const sU = document.getElementById('s-unres');
+      const sE = document.getElementById('s-top');
+      const sN = document.getElementById('s-top-n');
+
+      sT.textContent = '—'; sT.className = 'stat-num loading';
+      sU.textContent = '—'; sU.className = 'stat-num loading';
+      sE.textContent = '—'; sE.className = 'stat-num loading top-msg';
+      sN.textContent = '';
+
+      const tb = document.getElementById('tbody');
+      tb.innerHTML = '<tr><td colspan="7" class="empty-row">loading&hellip;</td></tr>';
+
+      const pStats = fetch(API + '/errors/stats').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+      const pErrs = fetch(API + '/errors').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+
+      try {
+        const [stats, resp] = await Promise.all([pStats, pErrs]);
+
+        sT.textContent = stats.total;
+        sT.className = 'stat-num';
+
+        sU.textContent = stats.unresolved;
+        sU.className = 'stat-num ' + (stats.unresolved > 0 ? 'red' : 'green');
+
+        if (stats.top_error) {
+          sE.textContent = stats.top_error.message;
+          sE.className = 'stat-num top-msg';
+          sN.textContent = stats.top_error.occurrence_count + ' occurrences';
+        } else {
+          sE.textContent = 'none yet';
+          sE.className = 'stat-num top-msg';
+        }
+
+        const errs = resp.data || [];
+        cache = errs;
+
+        if (!errs.length) {
+          tb.innerHTML = '<tr><td colspan="7" class="empty-row">no errors logged</td></tr>';
+          return;
+        }
+
+        tb.innerHTML = errs.map((e, i) => {
+          const rc = e.resolved ? ' class="done"' : '';
+          const st = e.resolved
+            ? '<span class="status-tag closed">resolved</span>'
+            : '<span class="status-tag open">open</span>';
+
+          let acts = '<button class="btn btn-q" id="qb-' + e.id + '" onclick="queryAI(' + i + ',this)">Query AI</button>';
+
+          if (e.resolved) {
+            const fx = e.past_fix || '';
+            if (fx) acts += ' <span class="fix-note" title="' + h(fx) + '">' + h(cut(fx, 80)) + '</span>';
+          } else {
+            acts += ' <button class="btn btn-g" onclick="openModal(' + e.id + ')">Mark Resolved</button>';
+          }
+
+          return '<tr' + rc + '>' +
+            '<td class="c-id">' + e.id + '</td>' +
+            '<td class="c-msg">' + h(e.message) + '</td>' +
+            '<td><span class="svc-tag">' + h(e.service_name) + '</span></td>' +
+            '<td class="c-occ">' + (e.occurrence_count !== undefined ? e.occurrence_count : '—') + '</td>' +
+            '<td>' + st + '</td>' +
+            '<td class="c-time">' + fmt(e.created_at) + '</td>' +
+            '<td class="c-actions"><div class="acts">' + acts + '</div></td>' +
+            '</tr>';
+        }).join('');
+
+      } catch (e) {
+        console.error(e);
+        showErr('stats-err', 'Could not load data: ' + e.message);
+        showErr('tbl-err', 'Could not load errors: ' + e.message);
+        tb.innerHTML = '<tr><td colspan="7" class="empty-row">failed to load</td></tr>';
+      }
+    }
+
+    async function queryAI(idx, btn) {
+      const err = cache[idx];
+      if (!err) return;
+
+      const panel = document.getElementById('ai-panel');
+      const body = document.getElementById('ai-body');
+      const cArea = document.getElementById('conf-area');
+
+      hideErr('ai-err');
+      panel.classList.add('on');
+      cArea.style.display = 'none';
+
+      body.innerHTML = '<div class="ai-wait"><span class="dot"></span><span class="dot"></span><span class="dot"></span><br>Analysing error... (~10 seconds)</div>';
+
+      const orig = btn.textContent;
+      btn.textContent = 'Analysing...';
+      btn.disabled = true;
+
+      document.getElementById('ai-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      try {
+        const r = await fetch(API + '/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error_log: err.sanitized_trace })
+        });
+        if (!r.ok) throw new Error(r.status);
+        const data = await r.json();
+
+        const ai = data.response || {};
+        const sims = data.similar_cases || [];
+        const conf = ai.confidence || 0;
+
+        const cVal = document.getElementById('conf-val');
+        const cTag = document.getElementById('conf-tag');
+        cVal.textContent = conf.toFixed(2);
+
+        if (conf >= 0.75) { cTag.textContent = 'High'; cTag.className = 'conf-tag conf-h'; }
+        else if (conf >= 0.50) { cTag.textContent = 'Medium'; cTag.className = 'conf-tag conf-m'; }
+        else { cTag.textContent = 'Low'; cTag.className = 'conf-tag conf-l'; }
+        cArea.style.display = 'flex';
+
+        let simHtml;
+        if (sims.length) {
+          simHtml = '<ul class="sim-list">' + sims.map(s =>
+            '<li><span class="sc">[' + s.similarity_score.toFixed(4) + ']</span> ' +
+            h(s.message) + ' <span class="sv">— ' + h(s.service_name) + '</span></li>'
+          ).join('') + '</ul>';
+        } else {
+          simHtml = '<div class="sim-none">No similar errors found in history.</div>';
+        }
+
+        body.innerHTML =
+          '<div class="ai-sect"><h3>Similar past errors</h3>' + simHtml + '</div>' +
+          '<div class="ai-sect"><h3>Root cause</h3><div class="rc-block">' + h(ai.root_cause || 'undetermined') + '</div></div>' +
+          '<div class="ai-sect"><h3>Suggested fix</h3><div class="sf-block">' + h(ai.suggested_fix || 'none') + '</div></div>';
+
+      } catch (e) {
+        console.error(e);
+        body.innerHTML = '';
+        cArea.style.display = 'none';
+        showErr('ai-err', 'Query failed: ' + e.message);
+      } finally {
+        btn.textContent = orig;
+        btn.disabled = false;
+      }
+    }
+
+    async function markResolved(eid, desc) {
+      try {
+        const r = await fetch(API + '/errors/' + eid + '/fix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fix_description: desc })
+        });
+        if (!r.ok) throw new Error(r.status);
+        await loadDashboard();
+      } catch (e) {
+        console.error(e);
+        showErr('tbl-err', 'Failed to resolve #' + eid + ': ' + e.message);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadDashboard);
+  </script>
+</body>
+</html>
