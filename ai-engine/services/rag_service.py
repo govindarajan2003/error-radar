@@ -1,6 +1,7 @@
 import os
 import requests
 import json
+import re
 from dotenv import load_dotenv
 from pathlib import Path
 from typing import Optional
@@ -9,7 +10,6 @@ from services.embedding_service import get_embedding
 from repositories.error_repo import find_similar_by_vector, get_all_errors_from_db, update_past_fix, insert_error, update_occurrence_count, find_duplicate_id
 from exceptions.database_exceptions import ErrorLogNotFoundError, UpdateOccurrenceFailureError
 from services.embedding_service import embed_error, get_embedding
-
 
 # Load configuration values from the .env file into process environment variables.
 load_dotenv()
@@ -237,7 +237,6 @@ def update_human_fix_service(
 def insert_new_error(
         message: str,
         stack_trace: str,
-        sanitized_trace: str,
         service_name: str
 ):
     """
@@ -264,6 +263,7 @@ def insert_new_error(
             cannot be updated.
         SQLAlchemyError: If a database operation fails..
     """
+    sanitized_trace = sanitize_trace_service(stack_trace)
     vector = get_embedding(sanitized_trace)
     embedding = "[" + "," .join(str(v) for v in vector) + "]"
 
@@ -286,6 +286,25 @@ def insert_new_error(
     except SQLAlchemyError as e:
         print(f"Database crashed: {e}")
         raise e
+    
+def sanitize_trace_service(
+        trace: str
+) -> str:
+    if not trace:
+        return trace
+    email_pattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+    trace = re.sub(email_pattern, "REDACTED EMAIL", trace)
+
+    ip_address = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
+    trace = re.sub(ip_address, "REDACTED IP ADDRESS", trace)
+
+    jwt_token = r'Bearer\s+[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*'
+    trace = re.sub(jwt_token, "REDACTED JWT TOKEN", trace)
+
+    secret_pattern = r'(?i)(password|secret|key|token|api_key)\s*[:=]\s*[\'"]?([^\s\'",]+)[\'"]?'
+    trace = re.sub(secret_pattern, "REDACTED TEXT", trace)
+
+    return trace
 
     
 

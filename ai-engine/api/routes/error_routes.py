@@ -1,9 +1,10 @@
 from typing import Optional
 from fastapi import APIRouter, HTTPException
-
+from services.stats_service import stats_service, daily_stats_service
 from services.rag_service import get_all_errors, update_human_fix_service, insert_new_error
 from schemas.error_schemas import FixRequest, LogErrorRequest
 from exceptions.database_exceptions import ErrorLogNotFoundError
+from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter(
     prefix="/errors",
@@ -107,7 +108,8 @@ def log_new_error(
         new_error (LogErrorRequest): Error payload received from the client.
     
     Returns:
-        dict: success response after the error is stored.
+        dict: success response indicating that the error was
+    processed successfully.
     
     Raises:
         HTTPException:
@@ -117,15 +119,45 @@ def log_new_error(
         insert_new_error(
             new_error.message,
             new_error.stack_trace,
-            new_error.sanitized_trace,
             new_error.service_name
         )
         return {
             "response": "success"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error.")
+        raise 
 
+@router.get("/stats")
+def check_stats():
+    """
+    Retrieves aggregate error statistics for the application.
+    Returns:
+        dict: Returns a standardized JSON structured with
+            - total_count: Total number of errors.
+            - unresolved_count: Total number of unresolved errors.
+            - top_error: Error with the highest occurrence count.
 
+    """
+    try:
+        return stats_service()
+    except HTTPException as e:
+        raise HTTPException(status_code=400)
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500)
 
+@router.get("/stats/daily")
+def daily_stats(
+    interval: int  = 14
+):
+    """
+    Endpoint to view statistics about the application for a particular interval.
     
+    Returns:
+        list: Collection of daily error counts grouped by date.
+    """
+    try:
+        return daily_stats_service(interval)
+    except HTTPException as e:
+        raise HTTPException(status_code=400)
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500)
