@@ -292,6 +292,12 @@ def sanitize_trace_service(
 ) -> str:
     if not trace:
         return trace
+        
+    # Keep only the last 8 lines of the trace to avoid framework boilerplate skewing vector similarity
+    trace_lines = trace.splitlines()
+    if len(trace_lines) > 8:
+        trace = "\n".join(trace_lines[-8:])
+
     email_pattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     trace = re.sub(email_pattern, "REDACTED EMAIL", trace)
 

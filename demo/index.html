@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Error Radar — Crash trigger panel for the TraceRAG demo application.">
+  <title>Error Radar // Crash Panel</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      background: #f4f1ea;
+      color: #1a1a1a;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 2rem 0;
+    }
+
+    .wrap {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px;
+      width: 100%;
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      margin-bottom: 1.5rem;
+    }
+
+    header .wrap {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      border-bottom: 2px solid #1a1a1a;
+      padding-bottom: 12px;
+    }
+
+    .brand h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+    }
+
+    .brand h1 em {
+      font-style: normal;
+      background: #1a1a1a;
+      color: #f4f1ea;
+      padding: 0 4px;
+    }
+
+    .brand .tagline {
+      font-size: 0.75rem;
+      color: #555;
+      margin-top: 4px;
+      letter-spacing: 0.05em;
+    }
+
+    /* ===== CONNECTION STATUS ===== */
+    .conn-bar {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 12px 0;
+      border-bottom: 1px dashed #1a1a1a;
+      margin-bottom: 2rem;
+      font-size: 0.75rem;
+    }
+
+    .conn-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #1a1a1a;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+
+    .conn-dot {
+      width: 10px;
+      height: 10px;
+      background: #ccc;
+      border: 1px solid #1a1a1a;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+
+    .conn-dot.ok { background: #2d6a4f; }
+    .conn-dot.err { background: #cc0000; }
+
+    .conn-label { color: #1a1a1a; }
+    .conn-url {
+      font-family: 'Courier New', Courier, monospace;
+      color: #555;
+      font-weight: normal;
+      text-transform: none;
+    }
+
+    /* ===== SECTION HEADINGS ===== */
+    .section-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 16px;
+      padding-left: 2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-transform: uppercase;
+    }
+
+    /* ===== CRASH TRIGGER PANEL ===== */
+    .crash-section {
+      margin: 0 0 2rem;
+    }
+
+    .crash-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .crash-card {
+      background: #fff;
+      border: 1px solid #1a1a1a;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .crash-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 6px;
+      height: 100%;
+      background: #ccc;
+      transition: width 0.15s;
+    }
+
+    .crash-card:hover {
+      background: #1a1a1a;
+      color: #f4f1ea;
+      transform: translate(-2px, -2px);
+      box-shadow: 4px 4px 0 #555;
+    }
+
+    .crash-card:hover::before {
+      width: 12px;
+    }
+
+    .crash-card:active {
+      transform: translate(0, 0);
+      box-shadow: 0 0 0 #555;
+    }
+
+    .crash-card.c-null::before    { background: #cc0000; }
+    .crash-card.c-auth::before    { background: #e9c46a; }
+    .crash-card.c-notfnd::before  { background: #2d6a4f; }
+    .crash-card.c-mem::before     { background: #6a4c93; }
+    .crash-card.c-dbtm::before    { background: #1a1a1a; }
+    
+    .crash-card.c-dbtm:hover::before { background: #f4f1ea; }
+
+    .crash-card .cc-type {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.7rem;
+      color: #555;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      padding-left: 12px;
+    }
+    
+    .crash-card:hover .cc-type { color: #ccc; }
+
+    .crash-card .cc-label {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: inherit;
+      margin-bottom: 8px;
+      padding-left: 12px;
+      font-family: Georgia, 'Times New Roman', serif;
+    }
+
+    .crash-card .cc-desc {
+      font-size: 0.8rem;
+      color: #555;
+      line-height: 1.4;
+      padding-left: 12px;
+    }
+    
+    .crash-card:hover .cc-desc { color: #aaa; }
+
+    .crash-card .cc-status {
+      font-size: 0.7rem;
+      margin-top: 16px;
+      color: #999;
+      min-height: 16px;
+      transition: color 0.15s;
+      padding-left: 12px;
+      font-style: italic;
+      font-family: Georgia, 'Times New Roman', serif;
+    }
+    
+    .crash-card:hover .cc-status { color: #888; }
+
+    .crash-card .cc-status.sent { color: #2d6a4f; font-weight: bold; font-style: normal; font-family: 'Courier New', monospace; }
+    .crash-card .cc-status.fail { color: #cc0000; font-weight: bold; font-style: normal; font-family: 'Courier New', monospace; }
+
+    /* ===== FIRE ALL ===== */
+    .fire-all-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 16px 0 32px;
+      border-top: 1px dashed #1a1a1a;
+      padding-top: 16px;
+    }
+
+    .fire-all-hint {
+      font-size: 0.8rem;
+      color: #555;
+      font-style: italic;
+      font-family: Georgia, 'Times New Roman', serif;
+    }
+
+    /* ===== MANUAL LOG SECTION ===== */
+    .manual-log {
+      margin: 0 0 32px;
+      border: 1px solid #1a1a1a;
+      background: #fff;
+    }
+
+    .ml-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: #1a1a1a;
+      color: #f4f1ea;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .ml-header h3 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .ml-toggle {
+      font-size: 0.9rem;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+    }
+
+    .ml-body {
+      padding: 0;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, padding 0.3s ease;
+    }
+
+    .ml-body.open {
+      padding: 24px;
+      max-height: 500px;
+    }
+
+    .ml-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .ml-field label {
+      display: block;
+      font-size: 0.7rem;
+      color: #555;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+
+    .ml-field input,
+    .ml-field textarea {
+      width: 100%;
+      padding: 10px 12px;
+      background: #f4f1ea;
+      border: 1px solid #1a1a1a;
+      color: #1a1a1a;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.85rem;
+    }
+
+    .ml-field input:focus,
+    .ml-field textarea:focus {
+      outline: none;
+      background: #fff;
+      border-color: #000;
+      box-shadow: 2px 2px 0 #ccc;
+    }
+
+    .ml-field textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .ml-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    /* ===== RESPONSE LOG ===== */
+    .log-section {
+      margin-bottom: 32px;
+    }
+
+    .log-wrap {
+      border: 1px solid #1a1a1a;
+      background: #fff;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .log-empty {
+      text-align: center;
+      padding: 48px 16px;
+      color: #777;
+      font-size: 0.85rem;
+      font-style: italic;
+      font-family: Georgia, 'Times New Roman', serif;
+    }
+
+    .log-entry {
+      padding: 16px;
+      border-bottom: 1px dashed #ccc;
+      font-size: 0.8rem;
+    }
+
+    .log-entry:last-child { border-bottom: none; }
+
+    .log-entry .le-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .log-entry .le-time {
+      font-size: 0.75rem;
+      color: #555;
+      font-weight: bold;
+    }
+
+    .log-entry .le-method {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border: 1px solid #1a1a1a;
+      text-transform: uppercase;
+    }
+
+    .le-method.get { background: #eaeaea; color: #1a1a1a; }
+    .le-method.post { background: #1a1a1a; color: #fff; }
+
+    .log-entry .le-path {
+      font-size: 0.8rem;
+      color: #1a1a1a;
+      font-weight: bold;
+    }
+
+    .le-status {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border: 1px solid #1a1a1a;
+      margin-left: auto;
+      text-transform: uppercase;
+    }
+
+    .le-status.s-ok { background: #2d6a4f; color: #fff; border-color: #2d6a4f; }
+    .le-status.s-err { background: #cc0000; color: #fff; border-color: #cc0000; }
+    .le-status.s-500 { background: #cc0000; color: #fff; border-color: #cc0000; }
+    .le-status.s-net { background: #e9c46a; color: #1a1a1a; border-color: #1a1a1a; }
+
+    .log-entry .le-body {
+      font-size: 0.75rem;
+      color: #1a1a1a;
+      background: #f4f1ea;
+      border: 1px solid #1a1a1a;
+      padding: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 14px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: inherit;
+      border: 1px solid #1a1a1a;
+      cursor: pointer;
+      transition: all 0.1s;
+      white-space: nowrap;
+      text-transform: uppercase;
+      background: transparent;
+      color: #1a1a1a;
+    }
+
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-danger {
+      background: #cc0000;
+      color: #fff;
+      border-color: #1a1a1a;
+      box-shadow: 3px 3px 0 #1a1a1a;
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: #a30000;
+      transform: translate(1px, 1px);
+      box-shadow: 2px 2px 0 #1a1a1a;
+    }
+
+    .btn-flat {
+      border-color: #1a1a1a;
+      color: #1a1a1a;
+    }
+    .btn-flat:hover { background: #1a1a1a; color: #f4f1ea; }
+
+    .btn-submit {
+      background: #1a1a1a;
+      color: #fff;
+      border-color: #1a1a1a;
+    }
+    .btn-submit:hover { background: #333; }
+
+    .btn-clear {
+      border: none;
+      color: #555;
+      font-size: 0.7rem;
+      text-decoration: underline;
+      text-transform: uppercase;
+      padding: 2px 4px;
+    }
+    .btn-clear:hover { color: #cc0000; }
+
+    /* ===== TOAST ===== */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 900;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 12px;
+    }
+
+    .toast {
+      padding: 12px 20px;
+      font-size: 0.8rem;
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: bold;
+      border: 1px solid #1a1a1a;
+      background: #fff;
+      color: #1a1a1a;
+      box-shadow: 4px 4px 0 #1a1a1a;
+      max-width: 360px;
+      text-transform: uppercase;
+    }
+
+    .toast.success {
+      background: #2d6a4f;
+      color: #fff;
+      border-color: #1a1a1a;
+    }
+
+    .toast.error {
+      background: #cc0000;
+      color: #fff;
+      border-color: #1a1a1a;
+    }
+
+    .toast.info {
+      background: #eaeaea;
+      color: #1a1a1a;
+    }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translate(20px, 20px); }
+      to { opacity: 1; transform: translate(0, 0); }
+    }
+
+    @keyframes toast-out {
+      from { opacity: 1; transform: translate(0, 0); }
+      to { opacity: 0; transform: translate(20px, 20px); }
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 0.75rem;
+      color: #555;
+      margin-top: auto;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-style: italic;
+      border-top: 1px dashed #1a1a1a;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .crash-grid { grid-template-columns: 1fr 1fr; }
+      .ml-row { grid-template-columns: 1fr; }
+      .conn-bar { flex-direction: column; align-items: flex-start; gap: 8px; }
+      header .wrap { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .fire-all-bar { flex-direction: column; gap: 12px; align-items: flex-start; }
+    }
+
+    @media (max-width: 480px) {
+      body { padding: 1rem 0; }
+      .wrap { padding: 0 16px; }
+      .crash-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="wrap">
+      <div class="brand">
+        <h1><em>Demo</em> App</h1>
+        <div class="tagline">crash panel // TraceRAG</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Connection status -->
+  <div class="wrap">
+    <div class="conn-bar">
+      <div class="conn-item">
+        <span class="conn-dot" id="conn-demo"></span>
+        <span class="conn-label">Demo App</span>
+        <span class="conn-url">:8001</span>
+      </div>
+      <div class="conn-item">
+        <span class="conn-dot" id="conn-engine"></span>
+        <span class="conn-label">AI Engine</span>
+        <span class="conn-url">:8000</span>
+      </div>
+    </div>
+  </div>
+
+  <main style="flex:1;">
+    <div class="wrap">
+
+      <!-- ── Crash Trigger Panel ── -->
+      <div class="crash-section">
+        <div class="section-title">
+          // Trigger Demo Crashes
+        </div>
+        <div class="crash-grid" id="crash-grid">
+          <div class="crash-card c-null" onclick="fireCrash('/crash/null-pointer', this)" id="crash-null-pointer">
+            <div class="cc-type">TypeError</div>
+            <div class="cc-label">Null Pointer</div>
+            <div class="cc-desc">Access ["email"] on a None object</div>
+            <div class="cc-status"></div>
+          </div>
+          <div class="crash-card c-auth" onclick="fireCrash('/crash/auth-failure', this)" id="crash-auth-failure">
+            <div class="cc-type">ValueError</div>
+            <div class="cc-label">Auth Failure</div>
+            <div class="cc-desc">JWT token has expired</div>
+            <div class="cc-status"></div>
+          </div>
+          <div class="crash-card c-notfnd" onclick="fireCrash('/crash/not-found', this)" id="crash-not-found">
+            <div class="cc-type">LookupError</div>
+            <div class="cc-label">Not Found</div>
+            <div class="cc-desc">User id 99999 missing from DB</div>
+            <div class="cc-status"></div>
+          </div>
+          <div class="crash-card c-mem" onclick="fireCrash('/crash/memory', this)" id="crash-memory">
+            <div class="cc-type">MemoryError</div>
+            <div class="cc-label">Heap Exhausted</div>
+            <div class="cc-desc">Java heap space during report gen</div>
+            <div class="cc-status"></div>
+          </div>
+          <div class="crash-card c-dbtm" onclick="fireCrash('/crash/db-timeout', this)" id="crash-db-timeout">
+            <div class="cc-type">TimeoutError</div>
+            <div class="cc-label">DB Timeout</div>
+            <div class="cc-desc">Connection pool exhausted @ 30s</div>
+            <div class="cc-status"></div>
+          </div>
+        </div>
+        <div class="fire-all-bar">
+          <span class="fire-all-hint">Click a card to trigger that error, or fire them all at once →</span>
+          <button class="btn btn-danger" id="fire-all-btn" onclick="fireAll()">Fire All Crashes</button>
+        </div>
+      </div>
+
+      <!-- ── Manual Error Logger (collapsible) ── -->
+      <div class="manual-log" id="manual-log-panel">
+        <div class="ml-header" onclick="toggleManualLog()">
+          <h3>+ Log Custom Error</h3>
+          <span class="ml-toggle" id="ml-arrow">▸</span>
+        </div>
+        <div class="ml-body" id="ml-body">
+          <div class="ml-row">
+            <div class="ml-field">
+              <label for="ml-msg">Message *</label>
+              <input type="text" id="ml-msg" placeholder="e.g. NullPointerException">
+            </div>
+            <div class="ml-field">
+              <label for="ml-svc">Service name</label>
+              <input type="text" id="ml-svc" placeholder="e.g. auth-service" value="demo-service">
+            </div>
+            <div class="ml-field">
+              <label for="ml-trace-short">Short description</label>
+              <input type="text" id="ml-trace-short" placeholder="e.g. user object was null at line 42">
+            </div>
+          </div>
+          <div class="ml-field" style="margin-bottom: 16px;">
+            <label for="ml-trace">Full stack trace</label>
+            <textarea id="ml-trace" placeholder="Paste full stack trace here..." rows="3"></textarea>
+          </div>
+          <div class="ml-actions">
+            <button class="btn btn-flat" onclick="clearManualLog()">Clear</button>
+            <button class="btn btn-submit" id="ml-submit-btn" onclick="submitManualLog()">Log Error</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Response log ── -->
+      <div class="log-section">
+        <div class="section-title" style="margin-bottom: 12px;">
+          // Response Log
+          <button class="btn-clear" onclick="clearLog()" style="margin-left:auto;">Clear</button>
+        </div>
+        <div class="log-wrap" id="log-wrap">
+          <div class="log-empty" id="log-empty">Trigger a crash to see responses here</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <footer>
+    Demo app on <strong>:8001</strong> — errors are forwarded to the TraceRAG AI engine on <strong>:8000</strong>
+  </footer>
+
+  <script>
+    /* ── Config ── */
+    const DEMO   = 'http://127.0.0.1:8001';
+    const ENGINE = 'http://127.0.0.1:8000';
+
+    /* ── Helpers ── */
+    function now() {
+      const d = new Date();
+      const p = n => String(n).padStart(2, '0');
+      return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+    }
+
+    function toast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = 'toast ' + type;
+      el.textContent = msg;
+      el.style.animation = 'toast-in 0.2s ease forwards';
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.animation = 'toast-out 0.25s ease forwards';
+        setTimeout(() => el.remove(), 260);
+      }, 3500);
+    }
+
+    /* ── Connection check ── */
+    async function checkConnection(url, dotId) {
+      const dot = document.getElementById(dotId);
+      try {
+        // Use a simple fetch — even a 404 means server is up
+        const r = await fetch(url + '/', { mode: 'cors' });
+        dot.className = 'conn-dot ok';
+      } catch {
+        dot.className = 'conn-dot err';
+      }
+    }
+
+    function checkAll() {
+      checkConnection(DEMO, 'conn-demo');
+      checkConnection(ENGINE, 'conn-engine');
+    }
+
+    /* ── Response log ── */
+    function addLogEntry(method, path, status, body) {
+      const wrap = document.getElementById('log-wrap');
+      const empty = document.getElementById('log-empty');
+      if (empty) empty.remove();
+
+      const statusClass = status >= 500 ? 's-500'
+        : status >= 400 ? 's-err'
+        : status > 0 ? 's-ok'
+        : 's-net';
+
+      const statusLabel = status > 0 ? status : 'NETWORK ERR';
+
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+
+      let bodyStr = '';
+      if (typeof body === 'object') {
+        try { bodyStr = JSON.stringify(body, null, 2); } catch { bodyStr = String(body); }
+      } else {
+        bodyStr = String(body || '');
+      }
+
+      entry.innerHTML =
+        '<div class="le-head">' +
+          '<span class="le-time">' + now() + '</span>' +
+          '<span class="le-method ' + method.toLowerCase() + '">' + method + '</span>' +
+          '<span class="le-path">' + path + '</span>' +
+          '<span class="le-status ' + statusClass + '">' + statusLabel + '</span>' +
+        '</div>' +
+        (bodyStr ? '<div class="le-body">' + escapeHtml(bodyStr) + '</div>' : '');
+
+      // Insert at top
+      wrap.insertBefore(entry, wrap.firstChild);
+
+      // Keep max 50 entries
+      while (wrap.children.length > 50) {
+        wrap.removeChild(wrap.lastChild);
+      }
+    }
+
+    function escapeHtml(s) {
+      const el = document.createElement('span');
+      el.textContent = s;
+      return el.innerHTML;
+    }
+
+    function clearLog() {
+      const wrap = document.getElementById('log-wrap');
+      wrap.innerHTML = '<div class="log-empty" id="log-empty">Trigger a crash to see responses here</div>';
+    }
+
+    /* ── Crash trigger ── */
+    async function fireCrash(path, card) {
+      const status = card.querySelector('.cc-status');
+      status.textContent = 'sending…';
+      status.className = 'cc-status';
+
+      try {
+        const r = await fetch(DEMO + path);
+        const data = await r.json();
+
+        addLogEntry('GET', path, r.status, data);
+
+        if (r.status === 500) {
+          // 500 is expected — the crash was triggered and reported
+          status.textContent = '✓ Error thrown → logged to AI engine';
+          status.className = 'cc-status sent';
+          toast('Crash triggered: ' + path, 'success');
+        } else {
+          status.textContent = '⚠ Unexpected ' + r.status;
+          status.className = 'cc-status fail';
+        }
+      } catch (e) {
+        addLogEntry('GET', path, 0, e.message);
+        status.textContent = '✕ Demo app unreachable';
+        status.className = 'cc-status fail';
+        toast('Demo app not running on port 8001', 'error');
+      }
+
+      setTimeout(() => {
+        status.textContent = '';
+        status.className = 'cc-status';
+      }, 4000);
+    }
+
+    async function fireAll() {
+      const btn = document.getElementById('fire-all-btn');
+      btn.disabled = true;
+      btn.textContent = 'Firing…';
+
+      const cards = document.querySelectorAll('.crash-card');
+      for (const card of cards) {
+        const path = card.getAttribute('onclick').match(/'([^']+)'/)[1];
+        await fireCrash(path, card);
+        // Small delay between each
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Fire All Crashes';
+      toast('All 5 crashes fired', 'info');
+    }
+
+    /* ── Manual error log ── */
+    function toggleManualLog() {
+      const body = document.getElementById('ml-body');
+      const arrow = document.getElementById('ml-arrow');
+      body.classList.toggle('open');
+      arrow.textContent = body.classList.contains('open') ? '▾' : '▸';
+    }
+
+    function clearManualLog() {
+      document.getElementById('ml-msg').value = '';
+      document.getElementById('ml-svc').value = 'demo-service';
+      document.getElementById('ml-trace-short').value = '';
+      document.getElementById('ml-trace').value = '';
+    }
+
+    async function submitManualLog() {
+      const msg = document.getElementById('ml-msg').value.trim();
+      const svc = document.getElementById('ml-svc').value.trim();
+      const trace = document.getElementById('ml-trace').value.trim()
+        || document.getElementById('ml-trace-short').value.trim()
+        || msg;
+
+      if (!msg) {
+        document.getElementById('ml-msg').style.borderColor = '#cc0000';
+        setTimeout(() => document.getElementById('ml-msg').style.borderColor = '#1a1a1a', 1200);
+        toast('Message is required', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('ml-submit-btn');
+      btn.textContent = 'Logging…';
+      btn.disabled = true;
+
+      const payload = {
+        message: msg,
+        stack_trace: trace,
+        service_name: svc || 'unknown'
+      };
+
+      try {
+        const r = await fetch(ENGINE + '/errors/log-error', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await r.json();
+        addLogEntry('POST', '/errors/log-error', r.status, data);
+
+        if (r.ok) {
+          toast('Error logged to AI engine', 'success');
+          clearManualLog();
+        } else {
+          toast('AI engine returned ' + r.status, 'error');
+        }
+      } catch (e) {
+        addLogEntry('POST', '/errors/log-error', 0, e.message);
+        toast('AI engine unreachable on port 8000', 'error');
+      } finally {
+        btn.textContent = 'Log Error';
+        btn.disabled = false;
+      }
+    }
+
+    /* ── Init ── */
+    document.addEventListener('DOMContentLoaded', () => {
+      checkAll();
+      // Re-check connection every 15 seconds
+      setInterval(checkAll, 15000);
+    });
+  </script>
+</body>
+</html>
