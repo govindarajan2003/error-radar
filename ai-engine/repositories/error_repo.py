@@ -7,7 +7,7 @@ from core.database import engine
 from typing import Optional
 
 
-def find_similar_by_vector(query_vector_str: str, top_n: int, min_similarity: float) -> list[dict]:
+def find_similar_by_vector(query_vector_str: str, top_n: int, min_similarity: float, id: int | None = None) -> list[dict]:
     """
     Retrieve historically similar errors using pgvector similarity search.
 
@@ -33,17 +33,35 @@ def find_similar_by_vector(query_vector_str: str, top_n: int, min_similarity: fl
     """
     # Calculate cosine similarity using pgvector distance operators.
     # Higher similarity scores indicate a closer semantic match.
+    query = """
+        SELECT
+            id,
+            message,
+            sanitized_trace,
+            service_name,
+            past_fix,
+            1 - (embedding <=> :query_vector) AS similarity_score
+        FROM errors
+        WHERE embedding IS NOT NULL
+    """
+
+    params = {
+        "query_vector": query_vector_str,
+        "top_n": top_n,
+    }
+
+    if id is not None:
+        query += " AND id != :id"
+        params["id"] = id
+
+    query += """
+        ORDER BY embedding <=> :query_vector ASC
+        LIMIT :top_n
+    """
+
     with engine.connect() as connection:
-        query = text("""
-            SELECT id, message, sanitized_trace, service_name, past_fix,
-                   1 - (embedding <=> :query_vector) AS similarity_score
-            FROM errors
-            WHERE embedding IS NOT NULL
-            ORDER BY embedding <=> :query_vector ASC
-            LIMIT :top_n
-        """)
-        result = connection.execute(query, {'top_n': top_n, 'query_vector': query_vector_str})
-        
+        result = connection.execute(text(query), params)
+
         results_list = []
         for row in result.fetchall():
             if row.similarity_score >= min_similarity:
@@ -55,7 +73,8 @@ def find_similar_by_vector(query_vector_str: str, top_n: int, min_similarity: fl
                     "past_fix": row.past_fix,
                     "similarity_score": round(row.similarity_score, 4)
                 })
-        return results_list
+
+    return results_list
 
 def get_all_errors_from_db(resolved: Optional[bool] = None) -> list[dict]:
     """

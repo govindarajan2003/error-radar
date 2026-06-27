@@ -5,7 +5,10 @@ class QueryRequest(BaseModel):
     """
     Request payload for error analysis.
     """
-
+    
+    id: int = Field(
+        description="Error Id of the querying record, to avoid getting same record when searching for similar errors."
+    )
     error_log: str = Field(
         description="Raw error message, stack trace, or log entry to analyze."
     )

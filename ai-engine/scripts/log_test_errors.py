@@ -62,6 +62,7 @@ def run_simulation():
     print("Simulation of production API")
     for test_error in test_errors:
         payload = {
+            "id": -1,
             "error_log": test_error["error_log"]
         }
         print("Sending to Zero-Trust TraceRAG API...")
