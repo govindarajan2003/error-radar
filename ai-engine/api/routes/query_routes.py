@@ -50,11 +50,14 @@ def analyze_error(query: QueryRequest):
             during retrieval or diagnosis generation.
     """
     try:
+        # Extract the id
+        id = query.id
+
         # Extract the raw error log submitted by the client.
         err_log = query.error_log
 
         # Retrieve historically similar incidents from the vector store.
-        similar_cases = find_similar_errors(err_log)
+        similar_cases = find_similar_errors(err_log, id=id)
 
         # Generate a diagnosis using the incoming error and retrieved context.
         response = generate_suggestion(

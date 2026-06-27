@@ -17,7 +17,8 @@ load_dotenv()
 def find_similar_errors(
         query_text: str,
         top_n: int = int(os.getenv('TOP_N_RESULTS', 5)),
-        min_similarity: float = float(os.getenv('SIMILARITY_THRESHOLD', 0.70))
+        min_similarity: float = float(os.getenv('SIMILARITY_THRESHOLD', 0.70)),
+        id: int | None = None,
 ) -> list[dict]:
     """
     Executes a semantic similarity search using pgvector's cosine distance operator.
@@ -46,7 +47,7 @@ def find_similar_errors(
     query_vector = "[" + "," .join(str(v) for v in vector) + "]"
     
     # Execute Read-Only Transaction
-    results_list = find_similar_by_vector(query_vector, top_n, min_similarity)
+    results_list = find_similar_by_vector(query_vector, top_n, min_similarity, id)
     return results_list
 
 def generate_suggestion(

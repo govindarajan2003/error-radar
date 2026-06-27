@@ -16,7 +16,7 @@ def test_deduplication_logic_when_match_found(
     mock_find.return_value = 999
     mock_update.return_value = True
 
-    result = insert_new_error("test_msg", "test_trace", "test_trace", "test_service")
+    result = insert_new_error("test_msg", "test_trace", "test_service")
 
     mock_update.assert_called_once_with(999)
     mock_insert.assert_not_called()
@@ -36,7 +36,7 @@ def test_deduplication_inserts_new_record(
     mock_find.return_value = None
     mock_insert.return_value = 100
 
-    result = insert_new_error("test_msg", "test_trace", "test_trace", "test_service")
+    result = insert_new_error("test_msg", "test_trace", "test_service")
 
     mock_update.assert_not_called()
 
