@@ -23,7 +23,9 @@ The "Zero Trust" part is the privacy model. Stack traces routinely contain email
 ## Demo and Screenshots
 
 ### Video Demo
+
 [![Error Radar Demo Video](https://img.youtube.com/vi/vXdLkXAu2tg/hqdefault.jpg)](https://youtu.be/vXdLkXAu2tg "Click to watch the demo on YouTube")
+
 *Click the thumbnail above to watch the full walkthrough of the RAG pipeline, deduplication, and local LLM diagnosis.*
 
 ### Screenshots
